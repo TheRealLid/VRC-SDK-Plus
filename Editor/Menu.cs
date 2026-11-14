@@ -164,6 +164,7 @@ namespace AwAVR.VRCSDKPlus {
             _avatarSelector.SetValueWithoutNotify(VRCSDKPlus.GetAvatar());
             _avatarSelector.RegisterValueChangedCallback(evt => VRCSDKPlus.SetAvatar(evt.newValue));
             _avatarSelector.Refresh();
+            _avatarSelector.Q<ObjectField>()?.Aligned();
             box.Add(_avatarSelector);
             return box;
         }

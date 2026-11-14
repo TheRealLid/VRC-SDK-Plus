@@ -27,6 +27,14 @@ namespace AwAVR.VRCSDKPlus {
         internal string SearchValue { get; private set; }
         internal bool ShowAdvanced => ParameterUtility.HasAdvancedOptions && Toolbox.Preferences.ShowAdvancedParameters;
 
+        // Must match the heights in AwAVRSDKPlusStyles.uss (.sdkp-param-item / .sdkp-param-advanced).
+        private const float RowHeight = 24;
+        private const float AdvancedRowHeight = 72;
+        private float CurrentRowHeight => ShowAdvanced ? AdvancedRowHeight : RowHeight;
+
+        private VisualElement _header;
+        private Label _headerName, _headerType, _headerDefault, _headerSaved, _headerSynced;
+
         private void OnEnable() {
             if (!target) return;
             var expressionParameters = (VRCExpressionParameters)target;
@@ -95,6 +103,7 @@ namespace AwAVR.VRCSDKPlus {
             _avatarSelector.SetValueWithoutNotify(VRCSDKPlus.GetAvatar());
             _avatarSelector.RegisterValueChangedCallback(evt => VRCSDKPlus.SetAvatar(evt.newValue));
             _avatarSelector.Refresh();
+            _avatarSelector.Q<ObjectField>()?.Aligned();
             box.Add(_avatarSelector);
             return box;
         }
@@ -145,6 +154,7 @@ namespace AwAVR.VRCSDKPlus {
                 advancedToggle.labelElement.style.marginRight = 6;
                 advancedToggle.RegisterValueChangedCallback(evt => {
                     Toolbox.Preferences.ShowAdvancedParameters = evt.newValue;
+                    _listView.fixedItemHeight = CurrentRowHeight;
                     _listView.Rebuild();
                 });
                 row.Add(advancedToggle);
@@ -167,40 +177,73 @@ namespace AwAVR.VRCSDKPlus {
         }
 
         private VisualElement CreateListHeader() {
-            var header = new VisualElement();
-            header.AddToClassList("sdkp-param-header");
+            _header = new VisualElement();
+            _header.AddToClassList("sdkp-param-header");
 
-            Label Column(string text, string tooltip, string className) {
-                var label = new Label(text) { tooltip = tooltip };
-                label.AddToClassList(className);
-                header.Add(label);
+            Label Column(string text, string tooltip) {
+                var label = new Label(text) { tooltip = tooltip, pickingMode = PickingMode.Position };
+                label.AddToClassList("sdkp-header-label");
+                _header.Add(label);
                 return label;
             }
 
-            Column("Name",
-                "Name of the Parameter. This must match the name of the parameter that it is controlling in the playable layers. Case sensitive.",
-                "sdkp-col-name");
-            var statusSpacer = new VisualElement();
-            statusSpacer.style.width = 40;
-            header.Add(statusSpacer);
-            Column("Type", "Type of the Parameter.", "sdkp-col-type");
-            Column("Default", "The default/start value of this parameter.", "sdkp-col-default");
-            Column("Saved", "Value will stay when loading avatar or changing worlds", "sdkp-col-toggle");
+            _headerName = Column("Name",
+                "Name of the Parameter. This must match the name of the parameter that it is controlling in the playable layers. Case sensitive.");
+            _headerType = Column("Type", "Type of the Parameter.");
+            _headerDefault = Column("Default", "The default/start value of this parameter.");
+            _headerSaved = Column("Saved", "Value will stay when loading avatar or changing worlds");
             if (ParameterUtility.HasSyncingOption)
-                Column("Synced",
-                    "Value will be sent over the network to remote users. This is needed if this value should be the same locally and remotely. Synced parameters count towards the total memory usage.",
-                    "sdkp-col-toggle");
-            var removeSpacer = new VisualElement();
-            removeSpacer.AddToClassList("sdkp-col-remove");
-            header.Add(removeSpacer);
-            return header;
+                _headerSynced = Column("Synced",
+                    "Value will be sent over the network to remote users. This is needed if this value should be the same locally and remotely. Synced parameters count towards the total memory usage.");
+
+            _header.RegisterCallback<GeometryChangedEvent>(_ => AlignHeader());
+            return _header;
+        }
+
+        /// <summary>Puts each header label exactly over its column in the first row, whatever the inspector width.</summary>
+        private void AlignHeader() {
+            var row = _listView?.Q<ParameterRow>();
+            if (_header == null || row == null || _header.panel == null || float.IsNaN(_header.worldBound.x) ||
+                float.IsNaN(_header.worldBound.width)) return;
+
+            bool Valid(float f) => !float.IsNaN(f) && !float.IsInfinity(f);
+
+            void Place(Label label, VisualElement column) {
+                if (label == null) return;
+                var bounds = column?.worldBound ?? Rect.zero;
+                // Rows that aren't laid out yet report NaN, which must never reach a style value.
+                if (column == null || column.resolvedStyle.display == DisplayStyle.None || !Valid(bounds.x) ||
+                    !Valid(bounds.width) || bounds.width <= 0) {
+                    label.style.visibility = Visibility.Hidden;
+                    return;
+                }
+
+                // At least as wide as the text, centered on the column.
+                float textWidth = label.MeasureTextSize(label.text, 0, VisualElement.MeasureMode.Undefined, 0,
+                    VisualElement.MeasureMode.Undefined).x + 4;
+                float width = Valid(textWidth) ? Mathf.Max(bounds.width, textWidth) : bounds.width;
+                float left = bounds.center.x - _header.worldBound.x - width / 2;
+                if (!Valid(left)) return;
+                label.style.visibility = Visibility.Visible;
+                label.style.left = left;
+                label.style.width = width;
+            }
+
+            Place(_headerName, row.NameColumn);
+            Place(_headerType, row.TypeColumn);
+            Place(_headerDefault, row.DefaultColumn);
+            Place(_headerSaved, row.SavedColumn);
+            Place(_headerSynced, row.SyncedColumn);
         }
 
         private VisualElement CreateParameterList() {
             _listView = new ListView {
                 reorderable = true,
                 reorderMode = ListViewReorderMode.Animated,
-                virtualizationMethod = CollectionVirtualizationMethod.DynamicHeight,
+                // Fixed heights keep the list exactly as tall as its rows, so it never shows a second scrollbar
+                // inside the inspector (dynamic heights are estimated and the advanced rows are taller).
+                virtualizationMethod = CollectionVirtualizationMethod.FixedHeight,
+                fixedItemHeight = CurrentRowHeight,
                 showAddRemoveFooter = true,
                 showBorder = true,
                 showBoundCollectionSize = false,
@@ -211,7 +254,10 @@ namespace AwAVR.VRCSDKPlus {
                 bindItem = (element, index) => ((ParameterRow)element).Bind(index),
                 unbindItem = (element, _) => ((ParameterRow)element).Unbind()
             };
-            _listView.style.flexGrow = 1;
+            // Unity's default stylesheet caps lists at 4000px, after which the list scrolls inside the inspector's own
+            // scroll view (two scrollbars, also in the VRCSDK editor). Let it grow with its rows instead.
+            _listView.style.maxHeight = StyleKeyword.None;
+            _listView.RegisterCallback<GeometryChangedEvent>(_ => AlignHeader());
 
             _listView.itemsAdded += indices => {
                 serializedObject.Update();
@@ -255,7 +301,7 @@ namespace AwAVR.VRCSDKPlus {
                 objectType = typeof(VRCExpressionParameters),
                 allowSceneObjects = false,
                 tooltip = "Drop another Expression Parameters asset here to add its parameters to this one"
-            };
+            }.Aligned();
             mergeField.RegisterValueChangedCallback(evt => {
                 if (evt.newValue is VRCExpressionParameters other) MergeParameters(other);
                 mergeField.SetValueWithoutNotify(null);
@@ -287,6 +333,7 @@ namespace AwAVR.VRCSDKPlus {
 
         private void RefreshRows() {
             _listView?.Query<ParameterRow>().ForEach(row => row.Refresh());
+            _header?.schedule.Execute(AlignHeader);
         }
 
         private void RefreshMemory() {

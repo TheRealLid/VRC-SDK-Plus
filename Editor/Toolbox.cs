@@ -334,8 +334,52 @@ namespace AwAVR.VRCSDKPlus {
             var hint = new Label(text) { pickingMode = PickingMode.Ignore };
             hint.AddToClassList("sdkp-hint");
             hint.AddToClassList(rightAligned ? "sdkp-hint--right" : "sdkp-hint--left");
-            field.Add(hint);
+            // Inside the input box, so a field label in front of it isn't covered.
+            (field.Q(className: TextField.inputUssClassName) ?? field).Add(hint);
             return hint;
+        }
+
+        /// <summary>Makes a field with a label line its input up with the other fields in the inspector.</summary>
+        internal static T Aligned<T>(this T field) where T : VisualElement {
+            field.AddToClassList(BaseField<int>.alignedFieldUssClassName);
+            return field;
+        }
+
+        /// <summary>
+        /// A texture field drawn as a thumbnail: the picked texture fills it, drop a texture on it or use its picker button.
+        /// Call the returned refresh action when the property may have changed.
+        /// </summary>
+        internal static ObjectField ThumbnailField(SerializedProperty property, float width, float height, string placeholder,
+            out Action refresh) {
+            var field = new ObjectField { objectType = typeof(Texture2D), allowSceneObjects = false };
+            field.AddToClassList("sdkp-thumbnail");
+            field.style.width = width;
+            field.style.height = height;
+            field.BindProperty(property);
+
+            var hint = new Label(placeholder) { pickingMode = PickingMode.Ignore };
+            hint.AddToClassList("sdkp-thumbnail-hint");
+            field.Add(hint);
+
+            refresh = () => {
+                Texture2D texture;
+                try {
+                    texture = property.objectReferenceValue as Texture2D;
+                }
+                catch (Exception) {
+                    return; // property disposed
+                }
+
+                var display = field.Q(className: ObjectField.objectUssClassName);
+                if (display != null)
+                    display.style.backgroundImage = texture ? new StyleBackground(texture) : new StyleBackground(StyleKeyword.None);
+                hint.SetDisplayed(!texture);
+                field.tooltip = texture ? texture.name : $"{placeholder} (drop a texture here)";
+            };
+            var refreshAction = refresh;
+            field.RegisterValueChangedCallback(_ => refreshAction());
+            field.RegisterCallback<AttachToPanelEvent>(_ => field.schedule.Execute(refreshAction));
+            return field;
         }
 
         /// <summary>

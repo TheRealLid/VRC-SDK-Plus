@@ -14,7 +14,6 @@ using ValueType = VRC.SDK3.Avatars.ScriptableObjects.VRCExpressionParameters.Val
 namespace AwAVR.VRCSDKPlus {
     /// <summary>Edits the control selected in the menu inspector. Rebuilt when the selection or control type changes.</summary>
     internal sealed class ControlEditor : VisualElement {
-        private const float IconSize = 96;
         private const float CompactIconSize = 60;
 
         private readonly SerializedProperty _control;
@@ -105,17 +104,15 @@ namespace AwAVR.VRCSDKPlus {
 
         private VisualElement CreateMain() {
             var section = Section(null);
-            var main = new VisualElement();
-            main.AddToClassList("sdkp-control-main");
-            section.Add(main);
-
+            // Full-width rows with the inspector's aligned labels, so the fields line up with the rest of the
+            // inspector and keep their width in a narrow window.
             var fields = new VisualElement();
             fields.AddToClassList("sdkp-control-fields");
-            fields.Add(LabeledRow("Name", CreateNameField()));
-            fields.Add(LabeledRow("Type", CreateTypeField()));
-            fields.Add(LabeledRow("Style", CreateStyleField()));
-            main.Add(fields);
-            main.Add(CreateIconField(IconSize));
+            fields.Add(CreateNameField("Name"));
+            fields.Add(CreateTypeField("Type"));
+            fields.Add(CreateStyleField("Style"));
+            fields.Add(CreateLabeledIconField());
+            section.Add(fields);
 
             var help = new HelpBox(GetHelpMessage(BuiltType), HelpBoxMessageType.Info);
             help.style.marginTop = 3;
@@ -133,19 +130,17 @@ namespace AwAVR.VRCSDKPlus {
             fields.AddToClassList("sdkp-control-fields");
 
             var top = Row();
-            var name = CreateNameField();
-            name.AddToClassList("sdkp-grow");
-            top.Add(name);
-            var type = CreateTypeField();
-            type.AddToClassList("sdkp-grow");
-            top.Add(type);
+            top.Add(CreateNameField(null));
+            top.Add(CreateTypeField(null));
             top.Add(Toolbox.Icon(Toolbox.Strings.IconHelp, GetHelpMessage(BuiltType)));
             fields.Add(top);
             fields.Add(CreateMainParameter(false));
-            fields.Add(CreateStyleField());
+            fields.Add(CreateStyleField(null));
 
             main.Add(fields);
-            main.Add(CreateIconField(CompactIconSize));
+            var icon = CreateIconField(CompactIconSize);
+            icon.style.marginLeft = 6;
+            main.Add(icon);
             return section;
         }
 
@@ -158,10 +153,10 @@ namespace AwAVR.VRCSDKPlus {
             return selector;
         }
 
-        private TextField CreateNameField() {
-            var field = new TextField();
-            field.style.marginLeft = 0;
-            field.AddToClassList("sdkp-grow");
+        private TextField CreateNameField(string label) {
+            var field = new TextField(label);
+            if (label != null) field.Aligned();
+            else field.AddToClassList("sdkp-grow");
             field.BindProperty(_control.FindPropertyRelative("name"));
             var placeholder = Toolbox.AddHint(field, "Name", false);
             void Update() => placeholder.SetDisplayed(string.IsNullOrEmpty(field.value));
@@ -170,10 +165,10 @@ namespace AwAVR.VRCSDKPlus {
             return field;
         }
 
-        private EnumField CreateTypeField() {
-            var field = new EnumField(BuiltType);
-            field.style.marginLeft = 0;
-            field.AddToClassList("sdkp-grow");
+        private EnumField CreateTypeField(string label) {
+            var field = new EnumField(label, BuiltType);
+            if (label != null) field.Aligned();
+            else field.AddToClassList("sdkp-grow");
             field.RegisterValueChangedCallback(evt => {
                 evt.StopPropagation();
                 if (!(evt.newValue is ControlType newType) || newType == BuiltType) return;
@@ -184,13 +179,14 @@ namespace AwAVR.VRCSDKPlus {
             return field;
         }
 
-        private VisualElement CreateStyleField() {
+        private VisualElement CreateStyleField(string label) {
             var row = Row();
             var nameProperty = _control.FindPropertyRelative("name");
 
-            var color = new ColorField { showAlpha = false, tooltip = "Text color" };
-            color.style.marginLeft = 0;
+            var color = new ColorField(label) { showAlpha = false, tooltip = "Text color" };
+            if (label != null) color.Aligned();
             color.AddToClassList("sdkp-grow");
+            color.style.marginLeft = 0;
             color.RegisterValueChangedCallback(evt => {
                 var rawName = Regex.Replace(nameProperty.stringValue, @"</?color=?.*?>", string.Empty);
                 nameProperty.stringValue = $"<color=#{ColorUtility.ToHtmlStringRGB(evt.newValue)}>{rawName}</color>";
@@ -237,60 +233,34 @@ namespace AwAVR.VRCSDKPlus {
         }
 
         private VisualElement CreateIconField(float size) {
-            var iconProperty = _control.FindPropertyRelative("icon");
-            return CreateTextureField(iconProperty, size, size, "Icon");
+            var field = Toolbox.ThumbnailField(_control.FindPropertyRelative("icon"), size, size, "Icon", out var refresh);
+            _refreshers.Add(refresh);
+            return field;
         }
 
-        /// <summary>A texture preview (drop a texture on it) with an object field under it.</summary>
-        private VisualElement CreateTextureField(SerializedProperty property, float width, float previewHeight,
-            string emptyText) {
-            var container = new VisualElement();
-            container.AddToClassList("sdkp-icon-field");
-            container.style.width = width;
-
-            var preview = new Label { tooltip = "Drop a texture here" };
-            preview.AddToClassList("sdkp-icon-preview");
-            preview.style.width = width;
-            preview.style.height = previewHeight;
-            container.Add(preview);
-
-            var field = new ObjectField {
-                objectType = typeof(Texture2D),
-                allowSceneObjects = false
-            };
+        /// <summary>A standard aligned "Icon" field with a small preview of the texture next to it.</summary>
+        private VisualElement CreateLabeledIconField() {
+            var row = Row();
+            var property = _control.FindPropertyRelative("icon");
+            var field = new ObjectField("Icon") { objectType = typeof(Texture2D), allowSceneObjects = false }.Aligned();
+            field.AddToClassList("sdkp-grow");
             field.style.marginLeft = 0;
-            field.style.marginRight = 0;
             field.BindProperty(property);
-            container.Add(field);
+            row.Add(field);
+
+            var preview = new VisualElement { pickingMode = PickingMode.Ignore };
+            preview.AddToClassList("sdkp-icon-swatch");
+            row.Add(preview);
 
             void Update() {
                 var texture = property.objectReferenceValue as Texture2D;
                 preview.style.backgroundImage = texture ? new StyleBackground(texture) : new StyleBackground(StyleKeyword.None);
-                preview.text = texture ? string.Empty : emptyText;
-                preview.EnableInClassList("sdkp-icon-preview--empty", !texture);
+                preview.SetDisplayed(texture);
             }
 
             field.RegisterValueChangedCallback(_ => Update());
             _refreshers.Add(Update);
-
-            preview.RegisterCallback<DragUpdatedEvent>(_ => {
-                if (DragAndDrop.objectReferences.OfType<Texture2D>().Any())
-                    DragAndDrop.visualMode = DragAndDropVisualMode.Copy;
-            });
-            preview.RegisterCallback<DragPerformEvent>(_ => {
-                var texture = DragAndDrop.objectReferences.OfType<Texture2D>().FirstOrDefault();
-                if (!texture) return;
-                DragAndDrop.AcceptDrag();
-                property.objectReferenceValue = texture;
-                property.serializedObject.ApplyModifiedProperties();
-                Update();
-            });
-            preview.RegisterCallback<ClickEvent>(evt => {
-                if (evt.clickCount == 2 && property.objectReferenceValue)
-                    EditorGUIUtility.PingObject(property.objectReferenceValue);
-            });
-
-            return container;
+            return row;
         }
 
         #endregion
@@ -314,9 +284,8 @@ namespace AwAVR.VRCSDKPlus {
                 objectType = typeof(VRCExpressionsMenu),
                 allowSceneObjects = false
             };
+            field.Aligned();
             field.AddToClassList("sdkp-grow");
-            field.labelElement.style.minWidth = 116;
-            field.style.marginLeft = 0;
             field.BindProperty(subMenu);
             row.Add(field);
 
@@ -380,31 +349,21 @@ namespace AwAVR.VRCSDKPlus {
             var row = Row();
             row.AddToClassList("sdkp-axis-label");
 
-            var nameField = new TextField(_compact ? string.Empty : axis);
+            var nameField = new TextField(_compact ? null : axis);
+            if (!_compact) nameField.Aligned();
             nameField.AddToClassList("sdkp-grow");
-            nameField.style.marginLeft = 0;
-            if (!_compact) nameField.labelElement.style.minWidth = 116;
             nameField.BindProperty(label.FindPropertyRelative("name"));
-            if (_compact) {
-                var placeholder = Toolbox.AddHint(nameField, axis, false);
-                void Update() => placeholder.SetDisplayed(string.IsNullOrEmpty(nameField.value));
-                nameField.RegisterValueChangedCallback(_ => Update());
-                _refreshers.Add(Update);
-            }
-
+            var placeholder = Toolbox.AddHint(nameField, _compact ? axis : "Name", false);
+            void Update() => placeholder.SetDisplayed(string.IsNullOrEmpty(nameField.value));
+            nameField.RegisterValueChangedCallback(_ => Update());
+            _refreshers.Add(Update);
             row.Add(nameField);
 
-            var icon = label.FindPropertyRelative("icon");
-            if (_compact) {
-                var iconField = new ObjectField { objectType = typeof(Texture2D), allowSceneObjects = false };
-                iconField.style.width = 110;
-                iconField.BindProperty(icon);
-                row.Add(iconField);
-            }
-            else {
-                row.Add(CreateTextureField(icon, 58, 40, axis));
-            }
-
+            var icon = Toolbox.ThumbnailField(label.FindPropertyRelative("icon"), _compact ? 40 : 36,
+                _compact ? 20 : 36, string.Empty, out var refresh);
+            icon.style.marginLeft = 4;
+            _refreshers.Add(refresh);
+            row.Add(icon);
             return row;
         }
 
@@ -523,15 +482,6 @@ namespace AwAVR.VRCSDKPlus {
         private static VisualElement Row() {
             var row = new VisualElement();
             row.AddToClassList("sdkp-row");
-            return row;
-        }
-
-        private static VisualElement LabeledRow(string label, VisualElement field) {
-            var row = Row();
-            var labelElement = new Label(label);
-            labelElement.AddToClassList("sdkp-field-label");
-            row.Add(labelElement);
-            row.Add(field);
             return row;
         }
 

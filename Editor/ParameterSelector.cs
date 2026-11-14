@@ -13,8 +13,6 @@ namespace AwAVR.VRCSDKPlus {
     /// is missing, a button to add it to the expression parameters and, for the main parameter, its value.
     /// </summary>
     internal sealed class ParameterSelector : VisualElement {
-        private const float LabelWidth = 120;
-
         private readonly SerializedProperty _parameter;
         private readonly SerializedProperty _value;
         private readonly Func<VRCExpressionParameters> _getParameters;
@@ -47,17 +45,9 @@ namespace AwAVR.VRCSDKPlus {
             AddToClassList("sdkp-row");
             AddToClassList("sdkp-parameter-selector");
 
-            if (!string.IsNullOrEmpty(label)) {
-                var labelElement = new Label(label);
-                labelElement.style.width = LabelWidth;
-                labelElement.style.minWidth = LabelWidth;
-                labelElement.style.flexShrink = 0;
-                Add(labelElement);
-            }
-
-            _nameField = new TextField();
+            _nameField = new TextField(string.IsNullOrEmpty(label) ? null : label);
+            if (!string.IsNullOrEmpty(label)) _nameField.Aligned();
             _nameField.AddToClassList("sdkp-grow");
-            _nameField.style.marginLeft = 0;
             _nameField.BindProperty(parameter.FindPropertyRelative("name"));
             _placeholder = Toolbox.AddHint(_nameField, "Parameter", false);
             _nameField.RegisterValueChangedCallback(_ => schedule.Execute(Refresh));
@@ -86,7 +76,7 @@ namespace AwAVR.VRCSDKPlus {
             if (value != null) {
                 _intValueField = new IntegerField { tooltip = "Value the parameter is set to (0-255)" };
                 _floatValueField = new FloatField { tooltip = "Value the parameter is set to" };
-                _boolValueField = new TextField { tooltip = "Bools are set to true" };
+                _boolValueField = new TextField { tooltip = "Bools are set to true", value = "True" };
                 _boolValueField.SetEnabled(false);
                 foreach (var field in new VisualElement[] { _intValueField, _floatValueField, _boolValueField }) {
                     field.style.width = 50;

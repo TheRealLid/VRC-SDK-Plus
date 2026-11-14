@@ -42,6 +42,14 @@ namespace AwAVR.VRCSDKPlus {
         private readonly EnumField _representationField;
         private readonly Label _infoLabel;
 
+        // Columns the parameters inspector lines its header up with.
+        internal VisualElement NameColumn => _nameField;
+        internal VisualElement TypeColumn => _typeField;
+        internal VisualElement DefaultColumn => _defaultBoolContainer.resolvedStyle.display != DisplayStyle.None ? _defaultBoolContainer
+            : _defaultIntField.resolvedStyle.display != DisplayStyle.None ? (VisualElement)_defaultIntField : _defaultFloatField;
+        internal VisualElement SavedColumn => _savedField.parent;
+        internal VisualElement SyncedColumn => _syncedField?.parent;
+
         internal ParameterRow(VRCParamsPlus owner) {
             _owner = owner;
             AddToClassList("sdkp-param-item");
@@ -129,15 +137,19 @@ namespace AwAVR.VRCSDKPlus {
 
             #region Advanced options (VRCSDK 3.10.6+)
 
+            // Two fixed lines that never wrap, so every row has the same height (see VRCParamsPlus.RowHeight).
             _advanced = new VisualElement();
             _advanced.AddToClassList("sdkp-param-advanced");
             Add(_advanced);
+            var firstLine = AdvancedLine();
+            var secondLine = AdvancedLine();
 
             if (ParameterUtility.HasLerpOptions) {
-                var lerpGroup = AdvancedGroup("Lerp Duration:",
-                    "How long remote users take to smoothly move to a new value of this parameter. Bools never lerp.");
+                firstLine.Add(AdvancedLabel("Lerp Duration",
+                    "How long remote users take to smoothly move to a new value of this parameter. Bools never lerp.", true));
                 _lerpTypeField = new DropdownField(new List<string> { LerpDefault, LerpCustom }, 0);
-                _lerpTypeField.style.width = 80;
+                _lerpTypeField.AddToClassList("sdkp-adv-field");
+                _lerpTypeField.style.width = 76;
                 _lerpTypeField.RegisterValueChangedCallback(evt => {
                     evt.StopPropagation();
                     if (!TryGetProperty(out var prop)) return;
@@ -145,10 +157,11 @@ namespace AwAVR.VRCSDKPlus {
                         evt.newValue == LerpCustom;
                     Apply(prop);
                 });
-                lerpGroup.Add(_lerpTypeField);
+                firstLine.Add(_lerpTypeField);
 
                 _lerpDurationField = new FloatField { isDelayed = true, tooltip = "Seconds" };
-                _lerpDurationField.style.width = 44;
+                _lerpDurationField.AddToClassList("sdkp-adv-field");
+                _lerpDurationField.style.width = 48;
                 _lerpDurationField.RegisterValueChangedCallback(evt => {
                     evt.StopPropagation();
                     if (!TryGetProperty(out var prop)) return;
@@ -158,13 +171,16 @@ namespace AwAVR.VRCSDKPlus {
                     Apply(prop);
                     _lerpDurationField.SetValueWithoutNotify(value);
                 });
-                lerpGroup.Add(_lerpDurationField);
+                firstLine.Add(_lerpDurationField);
             }
 
-            var bitsGroup = AdvancedGroup("Bits:",
-                $"How many bits this parameter uses when synced ({ParameterUtility.MinBitWidth}-{ParameterUtility.MaxBitWidth}). Fewer bits use less memory but lower the range or precision.");
+            var bitsLabel = AdvancedLabel("Bits",
+                $"How many bits this parameter uses when synced ({ParameterUtility.MinBitWidth}-{ParameterUtility.MaxBitWidth}). Fewer bits use less memory but lower the range or precision.",
+                false);
+            secondLine.Add(bitsLabel);
             _bitWidthField = new IntegerField { isDelayed = true };
-            _bitWidthField.style.width = 40;
+            _bitWidthField.AddToClassList("sdkp-adv-field");
+            _bitWidthField.style.width = 36;
             _bitWidthField.RegisterValueChangedCallback(evt => {
                 evt.StopPropagation();
                 if (!TryGetProperty(out var prop)) return;
@@ -174,12 +190,15 @@ namespace AwAVR.VRCSDKPlus {
                 Apply(prop);
                 _bitWidthField.SetValueWithoutNotify(bits);
             });
-            bitsGroup.Add(_bitWidthField);
+            secondLine.Add(_bitWidthField);
 
-            var representationGroup = AdvancedGroup("Representation:",
-                "Signed values can be negative. Floats are signed by default and ints unsigned.");
+            var representationLabel = AdvancedLabel("Representation",
+                "Signed values can be negative. Floats are signed by default and ints unsigned.", false);
+            representationLabel.style.marginLeft = 10;
+            secondLine.Add(representationLabel);
             _representationField = new EnumField(ParameterUtility.Representation.Unsigned);
-            _representationField.style.width = 90;
+            _representationField.AddToClassList("sdkp-adv-field");
+            _representationField.style.width = 76;
             _representationField.RegisterValueChangedCallback(evt => {
                 evt.StopPropagation();
                 if (!(evt.newValue is ParameterUtility.Representation representation) ||
@@ -190,11 +209,11 @@ namespace AwAVR.VRCSDKPlus {
                 ClampDefault(prop);
                 Apply(prop);
             });
-            representationGroup.Add(_representationField);
+            secondLine.Add(_representationField);
 
             _infoLabel = new Label();
             _infoLabel.AddToClassList("sdkp-adv-info");
-            _advanced.Add(_infoLabel);
+            secondLine.Add(_infoLabel);
 
             #endregion
 
@@ -203,14 +222,24 @@ namespace AwAVR.VRCSDKPlus {
                 evt.menu.AppendSeparator();
                 evt.menu.AppendAction("Delete", _ => _owner.DeleteParameter(_index));
             }));
+
+            // The "(Float)" hint would cover the name in a narrow inspector.
+            _nameField.RegisterCallback<GeometryChangedEvent>(_ =>
+                _typeHint.style.visibility = _nameField.layout.width < 130 ? Visibility.Hidden : Visibility.Visible);
         }
 
-        private VisualElement AdvancedGroup(string label, string tooltip) {
-            var group = new VisualElement { tooltip = tooltip };
-            group.AddToClassList("sdkp-adv-group");
-            group.Add(new Label(label));
-            _advanced.Add(group);
-            return group;
+        private VisualElement AdvancedLine() {
+            var line = new VisualElement();
+            line.AddToClassList("sdkp-adv-line");
+            _advanced.Add(line);
+            return line;
+        }
+
+        private static Label AdvancedLabel(string text, string tooltip, bool fixedWidth) {
+            var label = new Label(text) { tooltip = tooltip };
+            label.AddToClassList("sdkp-adv-label");
+            if (fixedWidth) label.AddToClassList("sdkp-adv-label--fixed");
+            return label;
         }
 
         private static Toggle CreateToggleColumn(VisualElement parent) {
@@ -316,6 +345,7 @@ namespace AwAVR.VRCSDKPlus {
             _representationField.SetEnabled(!isBool);
             _representationField.SetValueWithoutNotify(ParameterUtility.GetRepresentation(prop));
             _infoLabel.text = ParameterUtility.GetInfo(prop);
+            _infoLabel.tooltip = _infoLabel.text;
         }
 
         private void SetDefaultValue(float value) {

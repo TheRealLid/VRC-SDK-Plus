@@ -120,14 +120,12 @@
     background-color: rgba(0, 128, 255, 0.5);
 }
 
-/* Parameters list */
+/* Parameters list
+   Rows have a fixed height (VRCParamsPlus.RowHeight / AdvancedRowHeight): 2 + 20 (+ 2 + 44 + 2) + 2 slack. */
 
 .sdkp-param-header {
-    flex-direction: row;
-    align-items: center;
+    position: relative;
     height: 20px;
-    padding-left: 22px;
-    padding-right: 4px;
     background-color: rgba(0, 0, 0, 0.15);
     border-width: 1px 1px 0 1px;
     border-color: rgba(0, 0, 0, 0.5);
@@ -135,46 +133,61 @@
     border-top-right-radius: 3px;
 }
 
-.sdkp-param-header Label {
-    -unity-text-align: middle-center;
+.sdkp-header-label {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    margin: 0;
     padding: 0;
+    -unity-text-align: middle-center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    visibility: hidden;
 }
 
 .sdkp-param-item {
-    padding: 1px 0;
+    flex-grow: 1;
+    overflow: hidden;
 }
 
 .sdkp-param-main {
     flex-direction: row;
     align-items: center;
     height: 20px;
+    margin-top: 2px;
+    flex-shrink: 0;
 }
 
 .sdkp-col-name {
     flex-grow: 1;
     flex-shrink: 1;
-    min-width: 60px;
+    min-width: 40px;
     margin: 0 2px 0 0;
 }
 
 .sdkp-col-type {
-    width: 72px;
+    width: 64px;
     flex-shrink: 0;
     margin: 0 4px 0 0;
 }
 
 .sdkp-col-default {
-    width: 60px;
+    width: 52px;
     flex-shrink: 0;
     margin: 0 4px 0 0;
 }
 
 .sdkp-col-toggle {
-    width: 44px;
+    width: 46px;
     flex-shrink: 0;
     margin: 0;
     justify-content: center;
     align-items: center;
+}
+
+.sdkp-col-toggle > Toggle,
+.sdkp-col-default > Toggle {
+    margin: 0;
 }
 
 .sdkp-col-remove {
@@ -183,33 +196,58 @@
 }
 
 .sdkp-col-status {
-    width: 20px;
+    width: 18px;
     flex-shrink: 0;
     align-items: center;
     justify-content: center;
 }
 
 .sdkp-param-advanced {
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 44px;
     margin: 2px 22px 2px 4px;
-    padding: 3px 6px;
+    padding: 2px 6px;
+    flex-shrink: 0;
+    overflow: hidden;
     background-color: rgba(0, 0, 0, 0.1);
     border-radius: 2px;
 }
 
-.sdkp-param-advanced Label {
-    margin-right: 4px;
-}
-
-.sdkp-param-advanced .sdkp-adv-group {
+.sdkp-adv-line {
     flex-direction: row;
     align-items: center;
-    margin-right: 12px;
+    height: 19px;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.sdkp-adv-label {
+    margin: 0 4px 0 0;
+    padding: 0;
+    flex-shrink: 0;
+    -unity-text-align: middle-left;
+}
+
+.sdkp-adv-label--fixed {
+    width: 92px;
+}
+
+.sdkp-adv-field {
+    margin: 0 2px;
+    height: 18px;
+    flex-shrink: 0;
 }
 
 .sdkp-adv-info {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 0;
+    margin-left: 8px;
+    padding: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     color: rgb(150, 150, 150);
 }
 
@@ -296,24 +334,65 @@
     margin-bottom: 3px;
 }
 
-.sdkp-icon-field {
+/* Texture field drawn as a thumbnail (Toolbox.ThumbnailField) */
+
+.sdkp-thumbnail {
+    margin: 0;
+    padding: 0;
     flex-shrink: 0;
-    margin-left: 4px;
-    align-items: stretch;
+    flex-direction: row;
 }
 
-.sdkp-icon-preview {
+.sdkp-thumbnail > .unity-object-field__input {
+    flex-grow: 1;
+    margin: 0;
+    padding: 0;
+    min-height: 0;
+    height: auto;
+}
+
+.sdkp-thumbnail .unity-object-field__object {
+    flex-grow: 1;
+    margin: 0;
+    padding: 2px;
+    -unity-background-scale-mode: scale-to-fit;
+}
+
+.sdkp-thumbnail .unity-object-field-display__icon,
+.sdkp-thumbnail .unity-object-field-display__label {
+    display: none;
+}
+
+.sdkp-thumbnail .unity-object-field__selector {
+    position: absolute;
+    right: 1px;
+    bottom: 1px;
+    border-radius: 2px;
+    background-color: rgba(40, 40, 40, 0.7);
+}
+
+.sdkp-icon-swatch {
+    width: 20px;
+    height: 20px;
+    margin-left: 4px;
+    flex-shrink: 0;
     border-width: 1px;
     border-color: rgba(0, 0, 0, 0.4);
-    background-color: rgba(0, 0, 0, 0.15);
+    border-radius: 2px;
     -unity-background-scale-mode: scale-to-fit;
-    margin-bottom: 2px;
 }
 
-.sdkp-icon-preview--empty {
+.sdkp-thumbnail-hint {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    margin: 0;
+    padding: 0;
     -unity-text-align: middle-center;
-    color: rgb(128, 128, 128);
     font-size: 10px;
+    color: rgb(128, 128, 128);
 }
 
 .sdkp-style-toggle {
@@ -327,5 +406,11 @@
 .sdkp-axis-label {
     flex-direction: row;
     align-items: center;
-    margin-bottom: 2px;
+    margin-bottom: 3px;
+}
+
+.sdkp-control-fields > .unity-base-field,
+.sdkp-control-fields > .sdkp-row,
+.sdkp-parameter-selector > .unity-base-field {
+    margin-left: 0;
 }
